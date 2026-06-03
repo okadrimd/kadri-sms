@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SMS Enrollment | Kadri Orthopaedics</title>
+  <style>
+    :root {
+      --navy: #1a2744;
+      --accent: #2a7d8a;
+      --bg: #f8f9fb;
+      --card: #ffffff;
+      --text: #2c3e50;
+      --muted: #6b7d94;
+      --border: #dfe6ed;
+      --success: #27ae60;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Georgia', 'Times New Roman', serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.7;
+    }
+    header {
+      background: var(--navy);
+      color: #fff;
+      padding: 2.5rem 1.5rem;
+      text-align: center;
+    }
+    header h1 {
+      font-size: 1.6rem;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+      margin-bottom: 0.3rem;
+    }
+    header p {
+      font-size: 0.95rem;
+      opacity: 0.8;
+      font-style: italic;
+    }
+    .container {
+      max-width: 620px;
+      margin: 0 auto;
+      padding: 2rem 1.5rem 4rem;
+    }
+    .intro {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 1.5rem 2rem;
+      margin-bottom: 1.5rem;
+    }
+    .intro h2 {
+      font-size: 1.1rem;
+      color: var(--navy);
+      margin-bottom: 0.75rem;
+    }
+    .intro p {
+      margin-bottom: 0.7rem;
+      font-size: 0.95rem;
+    }
+    .intro ul {
+      margin: 0.5rem 0 0.5rem 1.5rem;
+      font-size: 0.95rem;
+    }
+    .intro li { margin-bottom: 0.3rem; }
+    .form-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 2rem;
+      margin-bottom: 1.5rem;
+    }
+    .form-card h2 {
+      font-size: 1.1rem;
+      color: var(--navy);
+      margin-bottom: 1.25rem;
+      padding-bottom: 0.5rem;
+      border-bottom: 2px solid var(--accent);
+      display: inline-block;
+    }
+    .field {
+      margin-bottom: 1.25rem;
+    }
+    .field label {
+      display: block;
+      font-size: 0.9rem;
+      font-weight: 600;
+      color: var(--navy);
+      margin-bottom: 0.35rem;
+    }
+    .field input[type="text"],
+    .field input[type="tel"] {
+      width: 100%;
+      padding: 0.65rem 0.85rem;
+      font-size: 1rem;
+      font-family: inherit;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      background: #fdfdfe;
+      color: var(--text);
+      transition: border-color 0.2s;
+    }
+    .field input:focus {
+      outline: none;
+      border-color: var(--accent);
+    }
+    .consent-block {
+      background: #f4f7f9;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 1.25rem;
+      margin-bottom: 1.25rem;
+    }
+    .consent-block label {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.75rem;
+      font-size: 0.9rem;
+      line-height: 1.55;
+      cursor: pointer;
+    }
+    .consent-block input[type="checkbox"] {
+      margin-top: 0.25rem;
+      width: 18px;
+      height: 18px;
+      flex-shrink: 0;
+      cursor: pointer;
+      accent-color: var(--accent);
+    }
+    .btn {
+      display: block;
+      width: 100%;
+      padding: 0.8rem;
+      font-size: 1rem;
+      font-family: inherit;
+      font-weight: 600;
+      color: #fff;
+      background: var(--accent);
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .btn:hover { background: #237069; }
+    .btn:disabled {
+      background: #a0b4ba;
+      cursor: not-allowed;
+    }
+    .success-msg {
+      display: none;
+      background: #eafaf1;
+      border: 1px solid var(--success);
+      border-radius: 6px;
+      padding: 1.5rem 2rem;
+      text-align: center;
+      margin-bottom: 1.5rem;
+    }
+    .success-msg h3 {
+      color: var(--success);
+      margin-bottom: 0.5rem;
+    }
+    .disclosure {
+      font-size: 0.82rem;
+      color: var(--muted);
+      line-height: 1.5;
+      margin-top: 1rem;
+    }
+    .disclosure a {
+      color: var(--accent);
+      text-decoration: underline;
+    }
+    footer {
+      text-align: center;
+      padding: 1.5rem;
+      font-size: 0.8rem;
+      color: var(--muted);
+      border-top: 1px solid var(--border);
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>Kadri Orthopaedics</h1>
+  <p>Post-Operative Patient Education — SMS Enrollment</p>
+</header>
+
+<div class="container">
+
+  <div class="intro">
+    <h2>About This Program</h2>
+    <p>Kadri Orthopaedics offers a free SMS-based education program for patients undergoing total knee or total hip replacement surgery with Dr. Kadri. After enrollment, you will receive text messages with:</p>
+    <ul>
+      <li>Pre-operative preparation reminders</li>
+      <li>Post-operative recovery milestones and guidance</li>
+      <li>Rehabilitation tips tailored to your stage of recovery</li>
+    </ul>
+    <p>This program is educational only and does not replace direct medical advice from your care team. Messages are not intended for emergencies — if you are experiencing a medical emergency, call 911.</p>
+  </div>
+
+  <div class="form-card" id="enrollment-form">
+    <h2>Enroll in SMS Education</h2>
+
+    <div class="field">
+      <label for="firstName">First Name</label>
+      <input type="text" id="firstName" placeholder="Your first name" autocomplete="given-name">
+    </div>
+
+    <div class="field">
+      <label for="phone">Mobile Phone Number</label>
+      <input type="tel" id="phone" placeholder="(555) 555-5555" autocomplete="tel">
+    </div>
+
+    <div class="consent-block">
+      <label>
+        <input type="checkbox" id="consent">
+        <span>I consent to receive automated SMS messages from Kadri Orthopaedics for pre-operative preparation and post-operative recovery education. Message frequency varies. Msg &amp; data rates may apply. Reply STOP to unsubscribe. Reply HELP for help. Consent is not required as a condition of treatment or purchase.</span>
+      </label>
+    </div>
+
+    <button class="btn" id="submitBtn" disabled onclick="handleSubmit()">Enroll</button>
+
+    <p class="disclosure">
+      By enrolling, you agree to our <a href="https://kadriorthoterms.netlify.app/" target="_blank">SMS Terms &amp; Conditions and Privacy Policy</a>. You can opt out at any time by replying STOP to any message. For help, reply HELP or contact our office at 951-296-6676.
+    </p>
+  </div>
+
+  <div class="success-msg" id="success-msg">
+    <h3>You're enrolled!</h3>
+    <p>You will receive a confirmation text message shortly. If you have any questions, contact our office or reply HELP to any message.</p>
+  </div>
+
+</div>
+
+<footer>
+  &copy; 2026 Kadri Orthopaedics. All rights reserved.
+</footer>
+
+<script>
+  const checkbox = document.getElementById('consent');
+  const submitBtn = document.getElementById('submitBtn');
+
+  checkbox.addEventListener('change', function() {
+    submitBtn.disabled = !this.checked;
+  });
+
+  function handleSubmit() {
+    const firstName = document.getElementById('firstName').value.trim();
+    const phone = document.getElementById('phone').value.trim();
+
+    if (!firstName || !phone) {
+      alert('Please enter your first name and phone number.');
+      return;
+    }
+    if (!checkbox.checked) {
+      alert('Please check the consent box to continue.');
+      return;
+    }
+
+    document.getElementById('enrollment-form').style.display = 'none';
+    document.getElementById('success-msg').style.display = 'block';
+  }
+</script>
+
+</body>
+</html>
