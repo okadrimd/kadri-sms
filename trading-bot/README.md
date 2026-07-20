@@ -83,7 +83,26 @@ trained model is also archived under `models/` with a timestamp for rollback.
 | `train.py` | Trains PPO 350k steps, saves `models/champion.zip` |
 | `backtest.py` | Deterministic replay on the 5-month holdout, APY / DD / Sharpe |
 | `live_trade.py` | Hourly paper-trading loop with the SPY red-light shield |
+| `risk.py` | Safety net: portfolio kill switch + per-position stop losses |
 | `retrain.py` | Saturday champion/challenger retraining |
+
+## Safety net
+
+Two independent layers protect the account (both checked every hourly bar):
+
+- **Portfolio kill switch** (`KILL_SWITCH_DD`, default **15%**): if account
+  equity falls 15% below its high-water mark, every position is liquidated
+  and trading halts. The halt is sticky across restarts — inspect with
+  `python risk.py status` and clear it deliberately with
+  `python risk.py reset` once you've decided it's safe to resume.
+- **Per-position stop loss** (`POSITION_STOP_LOSS`, default **10%**): any
+  position down more than 10% from entry is closed immediately and that
+  ticker is locked out until the next trading day, so the model can't
+  instantly re-buy a falling knife.
+
+Both thresholds can be overridden via environment variables. Note the checks
+run on the hourly loop, so an overnight gap can exit worse than the stop
+level — acceptable for paper trading, but know the limitation.
 
 ## Honest caveats
 

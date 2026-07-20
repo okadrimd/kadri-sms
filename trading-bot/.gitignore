@@ -4,3 +4,4 @@ __pycache__/
 models/
 data_cache/
 *.log
+risk_state.json

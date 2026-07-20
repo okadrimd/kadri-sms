@@ -31,6 +31,15 @@ TRANSACTION_COST_PCT = 0.0005  # 5 bps slippage+fees per unit of position change
 MAX_POSITION_PCT = 1.0 / len(TRADE_TICKERS)  # equal-weight slots
 POLL_MINUTES = 60                            # act once per hourly bar
 
+# --- Safety net -----------------------------------------------------------
+# Portfolio kill switch: liquidate everything and halt trading if account
+# equity falls this far below its high-water mark. Sticky until manually
+# cleared with `python risk.py reset`.
+KILL_SWITCH_DD = float(os.environ.get("KILL_SWITCH_DD", "0.15"))
+# Per-position stop loss: close any position whose unrealized loss exceeds
+# this, then lock the ticker out until the next trading day.
+POSITION_STOP_LOSS = float(os.environ.get("POSITION_STOP_LOSS", "0.10"))
+
 # SPY red-light shield (force longs to cash while SPY < session VWAP).
 # Default OFF: backtested over 30 months it gave up ~90% of returns to
 # whipsaw while leaving max drawdown unchanged. SPY bias still reaches the

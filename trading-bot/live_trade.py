@@ -13,6 +13,11 @@ Once per hourly bar during regular market hours it:
   5. reconciles positions on the Alpaca PAPER account with market orders,
      allocating an equal-weight slot of account equity per ticker.
 
+Safety net (see risk.py): a portfolio kill switch liquidates everything and
+halts trading if equity drops KILL_SWITCH_DD below its high-water mark, and
+per-position stop losses close any trade down more than POSITION_STOP_LOSS
+(with a next-day re-entry lockout).
+
 Run it under systemd/supervisor/tmux on the server. It only ever talks to the
 paper endpoint (config.ALPACA_PAPER = True).
 """
@@ -27,6 +32,7 @@ import numpy as np
 
 import config
 from data import FEATURE_COLUMNS, build_features, fetch_hourly_bars
+from risk import RiskManager
 from trading_env import ACTION_TO_POSITION
 
 log = logging.getLogger("live")
@@ -90,11 +96,34 @@ def submit_delta_order(client, symbol: str, delta: int) -> None:
     log.info("order %s %s %d shares", side.value, symbol, abs(delta))
 
 
-def rebalance_once(model, client) -> None:
+def rebalance_once(model, client, risk: RiskManager) -> None:
     clock = client.get_clock()
     if not clock.is_open:
         log.info("market closed; next open %s", clock.next_open)
         return
+
+    if risk.halted:
+        log.warning("trading HALTED by kill switch (%s); "
+                    "run `python risk.py reset` to resume",
+                    risk.state.get("halted_reason"))
+        return
+
+    # Portfolio kill switch: flatten everything and stop if equity has
+    # fallen too far below its high-water mark.
+    equity_now = float(client.get_account().equity)
+    if risk.check_kill_switch(equity_now):
+        log.error("liquidating all positions and halting")
+        client.close_all_positions(cancel_orders=True)
+        return
+
+    # Per-position stop losses (checked before the model gets a say).
+    stopped_out: set[str] = set()
+    for pos in client.get_all_positions():
+        if pos.symbol not in config.TRADE_TICKERS:
+            continue
+        if risk.stop_loss_hit(pos.symbol, float(pos.unrealized_plpc)):
+            client.close_position(pos.symbol)
+            stopped_out.add(pos.symbol)
 
     feats, closes, red_light = latest_features()
     if red_light:
@@ -108,6 +137,9 @@ def rebalance_once(model, client) -> None:
     held = current_positions(client)
 
     for symbol in config.TRADE_TICKERS:
+        if symbol in stopped_out or risk.in_cooldown(symbol):
+            log.info("%s in stop-loss cooldown; staying flat today", symbol)
+            continue
         held_qty = held.get(symbol, 0.0)
         position_state = float(np.sign(held_qty))
         obs = np.append(feats[symbol], np.float32(position_state))
@@ -142,15 +174,21 @@ def main() -> None:
 
     model = PPO.load(config.CHAMPION_MODEL_PATH)
     client = trading_client()
+    risk = RiskManager()
     account = client.get_account()
     log.info(
         "connected to Alpaca PAPER account %s (equity $%s)",
         account.account_number, account.equity,
     )
+    log.info(
+        "safety net: kill switch -%.0f%% from HWM, position stop -%.0f%%%s",
+        config.KILL_SWITCH_DD * 100, config.POSITION_STOP_LOSS * 100,
+        " [currently HALTED]" if risk.halted else "",
+    )
 
     while True:
         try:
-            rebalance_once(model, client)
+            rebalance_once(model, client, risk)
         except Exception:
             log.exception("rebalance failed; retrying next bar")
         sleep_until_next_bar()
