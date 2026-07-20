@@ -7,3 +7,4 @@ pyarrow>=14.0
 tqdm
 rich
 python-dotenv
+requests

@@ -62,6 +62,21 @@ python live_trade.py
 Run `live_trade.py` under `tmux`, `systemd`, or `supervisor` on your server so
 it survives disconnects.
 
+## Daily Telegram close report
+
+`daily_report.py` sends a summary of every configured paper account (equity,
+day P&L, open positions, fills) to your Telegram bot after the close. Add
+`TELEGRAM_BOT_TOKEN` / `TELEGRAM_CHAT_ID` and any extra account keys to
+`.env` (see `.env.example`), test with `python daily_report.py --print`,
+then schedule it 10 minutes after the close:
+
+```cron
+10 16 * * 1-5 cd /path/to/trading-bot && .venv/bin/python daily_report.py >> report.log 2>&1
+```
+
+(Cron times are in the machine's local timezone — the line above assumes
+US/Eastern; adjust if your server runs on something else.)
+
 ## Automatic Saturday retraining
 
 ```cron
@@ -85,6 +100,7 @@ trained model is also archived under `models/` with a timestamp for rollback.
 | `live_trade.py` | Hourly paper-trading loop with the SPY red-light shield |
 | `risk.py` | Safety net: portfolio kill switch + per-position stop losses |
 | `retrain.py` | Saturday champion/challenger retraining |
+| `daily_report.py` | End-of-day Telegram summary across all paper accounts |
 
 ## Safety net
 
