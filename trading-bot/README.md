@@ -13,8 +13,11 @@ days. It follows the design described in the original write-up:
   `AMD, AAPL, MSFT, GOOGL`.
 - **Vision** (relative % distances on the 1-hour chart, never absolute
   prices): daily VWAP, 8 EMA, previous-day high/low (PDH/PDL), and a
-  real-time **SPY market-bias shield** — when SPY is below its session VWAP
-  the bot goes "Red Light" and may only hold cash or shorts.
+  **SPY market-bias signal** fed to the model. The hard "Red Light" shield
+  (force longs to cash while SPY < its session VWAP) is **off by default**:
+  backtested over 30 months it gave up ~90% of returns to hourly whipsaw
+  while leaving max drawdown essentially unchanged. Re-enable it with
+  `SPY_SHIELD=1` in the environment if you want the hard override anyway.
 - **Reward engine**: linear recency-weighted reward
   `weight = 0.5 + 0.5 * (bar_index / total_bars)` — old data (~2.5 years
   back) counts 50% (survival instincts), today's data counts 100% (profit

@@ -7,8 +7,9 @@ Once per hourly bar during regular market hours it:
      and SPY,
   2. builds the same relative-distance features the model was trained on,
   3. asks the model for cash / long / short per ticker,
-  4. applies the SPY "Red Light" shield -- if SPY is below its session VWAP,
-     long signals are forced to cash (shorts and cash are still allowed),
+  4. optionally applies the SPY "Red Light" shield (off by default; enable
+     with SPY_SHIELD=1) -- if SPY is below its session VWAP, long signals
+     are forced to cash (shorts and cash are still allowed),
   5. reconciles positions on the Alpaca PAPER account with market orders,
      allocating an equal-weight slot of account equity per ticker.
 
@@ -97,7 +98,10 @@ def rebalance_once(model, client) -> None:
 
     feats, closes, red_light = latest_features()
     if red_light:
-        log.info("SPY below VWAP -> RED LIGHT: long entries blocked")
+        if config.SPY_SHIELD_ENABLED:
+            log.info("SPY below VWAP -> RED LIGHT: long entries blocked")
+        else:
+            log.info("SPY below VWAP (shield disabled; informational only)")
 
     account = client.get_account()
     equity = float(account.equity)
@@ -110,9 +114,10 @@ def rebalance_once(model, client) -> None:
         action, _ = model.predict(obs, deterministic=True)
         direction = ACTION_TO_POSITION[int(action)]
 
-        # Real-time shield: in red-light mode the bot may only hold cash or
-        # shorts, never open/keep longs.
-        if red_light and direction > 0:
+        # Optional real-time shield: in red-light mode the bot may only hold
+        # cash or shorts, never open/keep longs. Disabled by default — see
+        # SPY_SHIELD_ENABLED in config.py for the backtest rationale.
+        if config.SPY_SHIELD_ENABLED and red_light and direction > 0:
             direction = 0.0
 
         target = desired_qty(equity, closes[symbol], direction)

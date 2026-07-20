@@ -31,6 +31,13 @@ TRANSACTION_COST_PCT = 0.0005  # 5 bps slippage+fees per unit of position change
 MAX_POSITION_PCT = 1.0 / len(TRADE_TICKERS)  # equal-weight slots
 POLL_MINUTES = 60                            # act once per hourly bar
 
+# SPY red-light shield (force longs to cash while SPY < session VWAP).
+# Default OFF: backtested over 30 months it gave up ~90% of returns to
+# whipsaw while leaving max drawdown unchanged. SPY bias still reaches the
+# model through the observation vector either way. Set SPY_SHIELD=1 to
+# re-enable the hard override.
+SPY_SHIELD_ENABLED = os.environ.get("SPY_SHIELD", "0") == "1"
+
 # --- Paths ----------------------------------------------------------------
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 MODEL_DIR = os.path.join(BASE_DIR, "models")
