@@ -132,6 +132,34 @@ def load_dataset(
     return {symbol: build_features(df, spy) for symbol, df in bars.items()}
 
 
+def market_regime_risk_on(symbol: str = config.MARKET_PROXY,
+                          sma_days: int = config.REGIME_SMA_DAYS) -> bool:
+    """True when `symbol` last daily close is at/above its `sma_days` SMA.
+
+    Uses Alpaca daily IEX bars. Slow-moving (daily) so it is safe to call once
+    per hourly rebalance; the underlying SMA only changes once a day.
+    """
+    from alpaca.data.enums import Adjustment, DataFeed
+    from alpaca.data.requests import StockBarsRequest
+    from alpaca.data.timeframe import TimeFrame
+
+    client = _historical_client()
+    start = datetime.now(timezone.utc) - timedelta(days=int(sma_days * 2 + 30))
+    request = StockBarsRequest(
+        symbol_or_symbols=symbol,
+        timeframe=TimeFrame.Day,
+        start=start,
+        feed=DataFeed.IEX,
+        adjustment=Adjustment.ALL,
+    )
+    df = client.get_stock_bars(request).df.xs(symbol, level=0).sort_index()
+    if len(df) < sma_days:
+        # Not enough history to judge — fail open (treat as risk-on).
+        return True
+    sma = df["close"].rolling(sma_days).mean().iloc[-1]
+    return bool(df["close"].iloc[-1] >= sma)
+
+
 def cache_path(name: str) -> str:
     os.makedirs(config.DATA_CACHE_DIR, exist_ok=True)
     return os.path.join(config.DATA_CACHE_DIR, f"{name}.parquet")

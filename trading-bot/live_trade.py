@@ -7,9 +7,12 @@ Once per hourly bar during regular market hours it:
      and SPY,
   2. builds the same relative-distance features the model was trained on,
   3. asks the model for cash / long / short per ticker,
-  4. optionally applies the SPY "Red Light" shield (off by default; enable
-     with SPY_SHIELD=1) -- if SPY is below its session VWAP, long signals
-     are forced to cash (shorts and cash are still allowed),
+  4. applies market-regime overlays before acting:
+       * Daily 200-day regime filter (on by default; REGIME_FILTER=0 to
+         disable) -- while SPY closes below its 200-day SMA, long signals are
+         forced to cash and existing longs are flattened,
+       * the hourly SPY "Red Light" VWAP shield (off by default; SPY_SHIELD=1
+         to enable),
   5. reconciles positions on the Alpaca PAPER account with market orders,
      allocating an equal-weight slot of account equity per ticker.
 
@@ -31,7 +34,8 @@ from datetime import datetime, timedelta, timezone
 import numpy as np
 
 import config
-from data import FEATURE_COLUMNS, build_features, fetch_hourly_bars
+from data import (FEATURE_COLUMNS, build_features, fetch_hourly_bars,
+                  market_regime_risk_on)
 from risk import RiskManager
 from trading_env import ACTION_TO_POSITION
 
@@ -132,6 +136,15 @@ def rebalance_once(model, client, risk: RiskManager) -> None:
         else:
             log.info("SPY below VWAP (shield disabled; informational only)")
 
+    # Daily market-regime overlay: while SPY is below its 200-day SMA, block
+    # long entries and flatten existing longs (shorts/cash still allowed).
+    regime_risk_on = True
+    if config.REGIME_FILTER_ENABLED:
+        regime_risk_on = market_regime_risk_on()
+        if not regime_risk_on:
+            log.warning("REGIME OFF: SPY below its %d-day SMA -> longs blocked",
+                        config.REGIME_SMA_DAYS)
+
     account = client.get_account()
     equity = float(account.equity)
     held = current_positions(client)
@@ -150,6 +163,11 @@ def rebalance_once(model, client, risk: RiskManager) -> None:
         # cash or shorts, never open/keep longs. Disabled by default — see
         # SPY_SHIELD_ENABLED in config.py for the backtest rationale.
         if config.SPY_SHIELD_ENABLED and red_light and direction > 0:
+            direction = 0.0
+
+        # Daily 200-day regime overlay: no longs while SPY is below its SMA
+        # (existing longs are flattened to cash; shorts are still permitted).
+        if not regime_risk_on and direction > 0:
             direction = 0.0
 
         target = desired_qty(equity, closes[symbol], direction)

@@ -40,6 +40,15 @@ KILL_SWITCH_DD = float(os.environ.get("KILL_SWITCH_DD", "0.15"))
 # this, then lock the ticker out until the next trading day.
 POSITION_STOP_LOSS = float(os.environ.get("POSITION_STOP_LOSS", "0.10"))
 
+# Daily market-regime overlay: block long entries (and flatten existing longs)
+# while SPY closes below its 200-day simple moving average. Unlike the hourly
+# VWAP shield, this is a slow daily signal that flips only a few times a year,
+# so it dodges sustained bear markets without whipsaw. Backtested on the swing
+# model it cut max drawdown from ~-33% to ~-20% while improving return. Default
+# ON. Set REGIME_FILTER=0 to disable.
+REGIME_FILTER_ENABLED = os.environ.get("REGIME_FILTER", "1") == "1"
+REGIME_SMA_DAYS = 200
+
 # SPY red-light shield (force longs to cash while SPY < session VWAP).
 # Default OFF: backtested over 30 months it gave up ~90% of returns to
 # whipsaw while leaving max drawdown unchanged. SPY bias still reaches the

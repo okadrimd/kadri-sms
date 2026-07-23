@@ -13,11 +13,17 @@ days. It follows the design described in the original write-up:
   `AMD, AAPL, MSFT, GOOGL`.
 - **Vision** (relative % distances on the 1-hour chart, never absolute
   prices): daily VWAP, 8 EMA, previous-day high/low (PDH/PDL), and a
-  **SPY market-bias signal** fed to the model. The hard "Red Light" shield
-  (force longs to cash while SPY < its session VWAP) is **off by default**:
-  backtested over 30 months it gave up ~90% of returns to hourly whipsaw
-  while leaving max drawdown essentially unchanged. Re-enable it with
-  `SPY_SHIELD=1` in the environment if you want the hard override anyway.
+  **SPY market-bias signal** fed to the model.
+- **Drawdown control — daily 200-day regime filter** (on by default): while
+  SPY closes below its 200-day SMA the bot blocks long entries and flattens
+  existing longs. This is a *slow* daily signal that flips only a few times a
+  year, so unlike the hourly VWAP shield it dodges sustained bears without
+  whipsaw. Backtested on the model it cut max drawdown from ~-33% to ~-20%
+  while improving return and Sharpe. Disable with `REGIME_FILTER=0`.
+- The hourly "Red Light" VWAP shield (force longs to cash while SPY < its
+  *session VWAP*) is **off by default** — over 30 months it gave up ~90% of
+  returns to hourly whipsaw with no drawdown benefit. Enable with
+  `SPY_SHIELD=1` only if you specifically want that hard override.
 - **Reward engine**: linear recency-weighted reward
   `weight = 0.5 + 0.5 * (bar_index / total_bars)` — old data (~2.5 years
   back) counts 50% (survival instincts), today's data counts 100% (profit
