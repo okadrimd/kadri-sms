@@ -46,87 +46,98 @@ def ema(arr: np.ndarray, period: int) -> np.ndarray:
     return out
 
 
-def session_indicators(df: pd.DataFrame) -> pd.DataFrame:
-    c = df["close"].to_numpy(float)
-    df = df.copy()
-    df["ema_f"] = ema(c, EMA_FAST)
-    df["ema_s"] = ema(c, EMA_SLOW)
-    df["roc"] = df["close"].pct_change(ROC_P)
-    df["relvol"] = df["volume"] / df["volume"].rolling(RELVOL_LOOKBACK, min_periods=1).mean()
-    return df
+FLATTEN_MIN = 15 * 60 + 55
+NO_ENTRY_MIN = 15 * 60 + 45
 
 
-def run(tqqq: pd.DataFrame, sqqq: pd.DataFrame, cost_bps_per_side: float,
-        start=None, end=None) -> dict:
-    """Replay the strategy; return trade blotter + summary for one cost level."""
-    if start:
-        tqqq, sqqq = tqqq[tqqq.index >= start], sqqq[sqqq.index >= start]
-    if end:
-        tqqq, sqqq = tqqq[tqqq.index <= end], sqqq[sqqq.index <= end]
+def _relvol(vol: np.ndarray) -> np.ndarray:
+    s = pd.Series(vol)
+    return (s / s.rolling(RELVOL_LOOKBACK, min_periods=1).mean()).to_numpy()
 
-    cost = cost_bps_per_side / 10_000.0
-    trades = []
+
+def prepare_days(tqqq: pd.DataFrame, sqqq: pd.DataFrame) -> list[dict]:
+    """Precompute per-session numpy arrays + indicators once (cost-independent)."""
+    days = []
     for day, t_day in tqqq.groupby(tqqq.index.date):
         s_day = sqqq[sqqq.index.date == day]
         if len(t_day) < EMA_SLOW + 1 or len(s_day) < EMA_SLOW + 1:
             continue
-        t_day = session_indicators(t_day)
-        s_day = session_indicators(s_day)
-        # 30-min opening range on TQQQ
-        or_end = t_day.index[0] + pd.Timedelta(minutes=OR_MINUTES)
+        idx = t_day.index.intersection(s_day.index)
+        if len(idx) < EMA_SLOW + 1:
+            continue
+        t_day, s_day = t_day.loc[idx], s_day.loc[idx]
+        tc = t_day["close"].to_numpy(float)
+        sc = s_day["close"].to_numpy(float)
+        or_end = idx[0] + pd.Timedelta(minutes=OR_MINUTES)
         opening = t_day[t_day.index < or_end]
-        or_hi, or_lo = opening["high"].max(), opening["low"].min()
+        days.append({
+            "day": day,
+            "ts": idx,
+            "minute": np.array([t.hour * 60 + t.minute for t in idx]),
+            "tc": tc, "sc": sc,
+            "ema_f": ema(tc, EMA_FAST), "ema_s": ema(tc, EMA_SLOW),
+            "roc_tq": pd.Series(tc).pct_change(ROC_P).to_numpy(),
+            "roc_sq": pd.Series(sc).pct_change(ROC_P).to_numpy(),
+            "rv_tq": _relvol(t_day["volume"].to_numpy(float)),
+            "rv_sq": _relvol(s_day["volume"].to_numpy(float)),
+            "or_hi": opening["high"].max(), "or_lo": opening["low"].min(),
+        })
+    return days
 
-        pos = None            # None | ("TQQQ"/"SQQQ", entry_px, shares, entry_ts)
+
+def run(days: list[dict], cost_bps_per_side: float, start=None, end=None) -> dict:
+    """Replay the strategy over precomputed days for one cost level."""
+    start = pd.Timestamp(start).date() if start else None
+    end = pd.Timestamp(end).date() if end else None
+    cost = cost_bps_per_side / 10_000.0
+    trades = []
+    for d in days:
+        if start and d["day"] < start: continue
+        if end and d["day"] > end: continue
+        ts, minute = d["ts"], d["minute"]
+        tc, sc, ema_f, ema_s = d["tc"], d["sc"], d["ema_f"], d["ema_s"]
+        roc_tq, roc_sq, rv_tq, rv_sq = d["roc_tq"], d["roc_sq"], d["rv_tq"], d["rv_sq"]
+        or_hi, or_lo = d["or_hi"], d["or_lo"]
+        pos = None            # (leg, entry_px, shares, entry_i)
         trades_today = 0
         realized_today = 0.0
 
-        # iterate by shared timestamps
-        idx = t_day.index.intersection(s_day.index)
-        for ts in idx:
-            tr, sr = t_day.loc[ts], s_day.loc[ts]
-            bullish = tr["ema_f"] > tr["ema_s"]
+        for i in range(len(ts)):
+            bullish = ema_f[i] > ema_s[i]
 
-            # --- exits first ---
             if pos is not None:
-                leg, epx, sh, ets = pos
-                row = tr if leg == "TQQQ" else sr
-                px = row["close"]
+                leg, epx, sh, ei = pos
+                px = tc[i] if leg == "TQQQ" else sc[i]
                 ema_cross_against = (leg == "TQQQ" and not bullish) or \
                                     (leg == "SQQQ" and bullish)
-                flatten = ts.time() >= FLATTEN_AT
+                flatten = minute[i] >= FLATTEN_MIN
                 if ema_cross_against or flatten:
                     gross = (px - epx) * sh
-                    fees = (epx + px) * sh * cost
-                    pnl = gross - fees
+                    pnl = gross - (epx + px) * sh * cost
                     realized_today += pnl
-                    trades.append({"day": day, "leg": leg, "entry": ets, "exit": ts,
-                                   "entry_px": epx, "exit_px": px, "shares": sh,
-                                   "gross": gross, "pnl": pnl,
+                    trades.append({"day": d["day"], "leg": leg, "entry": ts[ei],
+                                   "exit": ts[i], "entry_px": epx, "exit_px": px,
+                                   "shares": sh, "gross": gross, "pnl": pnl,
                                    "reason": "flatten" if flatten else "ema_cross"})
                     pos = None
-                if ts.time() >= FLATTEN_AT:
+                if minute[i] >= FLATTEN_MIN:
                     continue
 
-            # --- entries ---
             if pos is None:
                 if trades_today >= MAX_TRADES_DAY: continue
-                if ts.time() >= NO_ENTRY_AFTER: continue
+                if minute[i] >= NO_ENTRY_MIN: continue
                 if realized_today <= -DAILY_LOSS_HALT: continue
-                row = tr if bullish else sr
-                # momentum + volume filters (on the leg being entered)
-                if not (row["roc"] > 0.0): continue
-                if not (row["relvol"] >= MIN_RELVOL): continue
-                # opening-range counter-trend guard (based on TQQQ price vs OR)
-                broke_up = tr["close"] > or_hi
-                broke_dn = tr["close"] < or_lo
-                if bullish and broke_dn: continue      # bullish bet, market broke down
-                if (not bullish) and broke_up: continue  # bearish bet, market broke up
+                roc = roc_tq[i] if bullish else roc_sq[i]
+                relvol = rv_tq[i] if bullish else rv_sq[i]
+                if not (roc > 0.0): continue
+                if not (relvol >= MIN_RELVOL): continue
+                if bullish and tc[i] < or_lo: continue       # bullish bet, broke down
+                if (not bullish) and tc[i] > or_hi: continue  # bearish bet, broke up
                 leg = "TQQQ" if bullish else "SQQQ"
-                px = row["close"]
+                px = tc[i] if bullish else sc[i]
                 sh = int(PER_TRADE_DOLLARS // px)
                 if sh <= 0: continue
-                pos = (leg, px, sh, ts)
+                pos = (leg, px, sh, i)
                 trades_today += 1
 
     bt = pd.DataFrame(trades)
@@ -153,15 +164,15 @@ def main():
     sqqq = pd.read_parquet("data_cache/SQQQ_1min.parquet")
     span = f"{tqqq.index[0]:%Y-%m-%d} -> {tqqq.index[-1]:%Y-%m-%d}"
     print(f"Data: TQQQ {len(tqqq):,} + SQQQ {len(sqqq):,} minute bars ({span})")
-    print("Assumptions: relvol lookback=20, per-session indicators, OR guard as documented.\n")
+    print("Assumptions: relvol lookback=20, per-session indicators, OR guard as documented.")
+    days = prepare_days(tqqq, sqqq)
+    print(f"Prepared {len(days)} trading sessions.\n")
 
     print("FULL AVAILABLE HISTORY — cost sensitivity (per-side bps):")
     print(f"{'cost/side':>9} {'round-trips':>12} {'rt/day':>7} {'win%':>6} "
           f"{'gross $':>10} {'net $':>10} {'net/rt':>8}")
-    base = None
     for bps in [0.0, 1.0, 2.0, 3.0, 5.0]:
-        r = run(tqqq, sqqq, bps)
-        if bps == 0.0: base = r
+        r = run(days, bps)
         print(f"{bps:>9.0f} {r['round_trips']:>12,} {r['rt_per_day']:>7.1f} "
               f"{r['win_rate']:>6.1%} {r['gross_total']:>10,.0f} "
               f"{r['net_total']:>10,.0f} {r['avg_net_rt']:>8.3f}")
@@ -169,7 +180,7 @@ def main():
     # Validation vs the live account window
     print("\nVALIDATION — same window as the 192 live fills (Jun 29 -> Jul 22, 2026):")
     for bps in [0.0, 2.0]:
-        r = run(tqqq, sqqq, bps, start="2026-06-29", end="2026-07-22")
+        r = run(days, bps, start="2026-06-29", end="2026-07-22")
         if r["round_trips"]:
             print(f"  cost {bps:.0f}bps: {r['round_trips']} round-trips over {r['days']} days "
                   f"({r['rt_per_day']:.1f}/day), win {r['win_rate']:.1%}, "
