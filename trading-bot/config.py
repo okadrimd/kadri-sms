@@ -66,3 +66,25 @@ DATA_CACHE_DIR = os.path.join(BASE_DIR, "data_cache")
 ALPACA_API_KEY = os.environ.get("ALPACA_API_KEY", "")
 ALPACA_SECRET_KEY = os.environ.get("ALPACA_SECRET_KEY", "")
 ALPACA_PAPER = True
+
+# --- 9sig bot (nine_sig.py) -----------------------------------------------
+# Jason Kelly's quarterly signal strategy on TQQQ + a bond sleeve, plus the
+# 200-day regime overlay that (in backtest) cut its max drawdown from ~-65%
+# to ~-22% while slightly improving return.
+NINE_SIG_GROWTH = "TQQQ"          # growth (leveraged) sleeve
+NINE_SIG_BOND = "AGG"             # safe sleeve
+NINE_SIG_INIT_GROWTH_PCT = 0.60   # start 60% growth / 40% bond
+NINE_SIG_QUARTERLY_TARGET = 0.09  # signal line grows 9% per quarter
+# Regime overlay: park the growth sleeve in the bond fund while the market
+# proxy (QQQ) closes below its 200-day SMA. Reuses REGIME_SMA_DAYS below.
+NINE_SIG_REGIME_ENABLED = os.environ.get("NINE_SIG_REGIME", "1") == "1"
+NINE_SIG_REGIME_PROXY = "QQQ"     # underlying for TQQQ (Nasdaq-100)
+# Execution mode: "shadow" logs intended orders and places nothing (default,
+# for the first quarter of observation); "paper" actually trades the account.
+NINE_SIG_MODE = os.environ.get("NINE_SIG_MODE", "shadow")
+# Dedicated paper account for 9sig; falls back to the main keys if unset, but
+# use a SEPARATE account so it never collides with the swing bot's positions.
+NINE_SIG_API_KEY = os.environ.get("NINE_SIG_ALPACA_API_KEY", ALPACA_API_KEY)
+NINE_SIG_SECRET_KEY = os.environ.get("NINE_SIG_ALPACA_SECRET_KEY", ALPACA_SECRET_KEY)
+NINE_SIG_STATE_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                                   "nine_sig_state.json")

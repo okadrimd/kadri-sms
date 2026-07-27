@@ -83,6 +83,30 @@ then schedule it 10 minutes after the close:
 (Cron times are in the machine's local timezone — the line above assumes
 US/Eastern; adjust if your server runs on something else.)
 
+## 9sig bot (`nine_sig.py`)
+
+A separate, automated implementation of Jason Kelly's quarterly **9-Sig**
+strategy on TQQQ + AGG, with the **200-day regime overlay** bolted on (park
+the TQQQ sleeve in bonds while QQQ is below its 200-day SMA). In backtest
+2016–2026 the overlay cut 9sig's max drawdown from ~-65% to ~-22% while
+slightly improving return — it's what makes the strategy holdable.
+
+Run it once per trading day near the close:
+
+```cron
+45 15 * * 1-5 cd /path/to/trading-bot && .venv/bin/python nine_sig.py >> nine_sig.log 2>&1
+```
+
+**Start in shadow mode** (`NINE_SIG_MODE=shadow`, the default): it logs every
+intended order and places nothing. Watch it for a quarter, confirm the
+decisions look right, then flip to `NINE_SIG_MODE=paper` to trade. Use a
+**separate** paper account (`NINE_SIG_ALPACA_API_KEY/_SECRET`) so it never
+collides with the swing bot. It is paper-only and hard-coded that way.
+
+Caveat: even with the overlay this is a **leveraged-ETF strategy** — ~-22%
+drawdown is much better than -65% but still large. Paper-trade it for
+several quarters before trusting it.
+
 ## Automatic Saturday retraining
 
 ```cron
@@ -107,6 +131,7 @@ trained model is also archived under `models/` with a timestamp for rollback.
 | `risk.py` | Safety net: portfolio kill switch + per-position stop losses |
 | `retrain.py` | Saturday champion/challenger retraining |
 | `daily_report.py` | End-of-day Telegram summary across all paper accounts |
+| `nine_sig.py` | Automated 9sig (TQQQ) bot with 200-day regime overlay |
 
 ## Safety net
 

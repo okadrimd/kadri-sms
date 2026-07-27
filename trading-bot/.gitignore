@@ -5,3 +5,4 @@ models/
 data_cache/
 *.log
 risk_state.json
+nine_sig_state.json
