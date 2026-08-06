@@ -160,6 +160,29 @@ def market_regime_risk_on(symbol: str = config.MARKET_PROXY,
     return bool(df["close"].iloc[-1] >= sma)
 
 
+def realized_vol(symbol: str, window: int = 20) -> float | None:
+    """Annualized realized volatility from the last `window` daily returns.
+
+    Used by the 9sig vol-targeting overlay. Returns None if there isn't enough
+    history (caller should treat that as "don't scale").
+    """
+    from alpaca.data.enums import Adjustment, DataFeed
+    from alpaca.data.requests import StockBarsRequest
+    from alpaca.data.timeframe import TimeFrame
+
+    client = _historical_client()
+    start = datetime.now(timezone.utc) - timedelta(days=int(window * 3 + 15))
+    request = StockBarsRequest(
+        symbol_or_symbols=symbol, timeframe=TimeFrame.Day, start=start,
+        feed=DataFeed.IEX, adjustment=Adjustment.ALL,
+    )
+    df = client.get_stock_bars(request).df.xs(symbol, level=0).sort_index()
+    rets = df["close"].pct_change().dropna()
+    if len(rets) < window:
+        return None
+    return float(rets.tail(window).std() * np.sqrt(252))
+
+
 def cache_path(name: str) -> str:
     os.makedirs(config.DATA_CACHE_DIR, exist_ok=True)
     return os.path.join(config.DATA_CACHE_DIR, f"{name}.parquet")

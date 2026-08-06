@@ -13,6 +13,14 @@ in the bond fund instead of TQQQ, and rebuilt when QQQ reclaims the line.
 Backtested 2016-2026 this cut max drawdown from ~-65% to ~-22% while keeping
 (slightly improving) the return -- see scalper/rotation analysis in git log.
 
+Optional volatility-targeting overlay (NINE_SIG_VOL_TARGET=1, off by default):
+scales TQQQ exposure by min(1, TARGET_VOL / realized_vol) so the bot holds
+less when volatility spikes. In backtest this raised Sharpe from ~1.43 to
+~1.6, and re-levered (100% growth, 12%/qtr) gave higher return at similar
+drawdown. Intended for the base-vs-vol A/B test -- run it on a SEPARATE paper
+account with its own NINE_SIG_STATE_PATH. Config knobs (env): NINE_SIG_BOND,
+NINE_SIG_GROWTH_PCT, NINE_SIG_TARGET, NINE_SIG_TARGET_VOL, NINE_SIG_VOL_WINDOW.
+
 Cadence
 -------
 Run once per trading day, near the close. Each run it:
@@ -45,7 +53,7 @@ import os
 import pandas as pd
 
 import config
-from data import market_regime_risk_on
+from data import market_regime_risk_on, realized_vol
 
 log = logging.getLogger("9sig")
 logging.basicConfig(level=logging.INFO,
@@ -144,8 +152,19 @@ def rebalance_once(client) -> None:
         log.info("regime: %s vs %d-day SMA -> %s", config.NINE_SIG_REGIME_PROXY,
                  config.REGIME_SMA_DAYS, "RISK-ON" if risk_on else "RISK-OFF (park in bonds)")
 
-    # Desired split: TQQQ target is the signal line when risk-on, else zero.
-    desired_growth = 0.0 if not risk_on else min(signal, equity)
+    # Optional volatility-targeting overlay: scale the TQQQ exposure down when
+    # realized volatility runs above target (hold less in turbulent markets).
+    exposure = 1.0
+    if config.NINE_SIG_VOL_TARGET_ENABLED and risk_on:
+        rv = realized_vol(config.NINE_SIG_GROWTH, config.NINE_SIG_VOL_WINDOW)
+        if rv and rv > 0:
+            exposure = min(1.0, config.NINE_SIG_TARGET_VOL / rv)
+        log.info("vol-target: realized %.0f%% vs target %.0f%% -> exposure %.2f",
+                 (rv or 0) * 100, config.NINE_SIG_TARGET_VOL * 100, exposure)
+
+    # Desired split: TQQQ target is the (vol-scaled) signal line when risk-on,
+    # else zero. Whatever isn't in TQQQ sits in the bond sleeve.
+    desired_growth = 0.0 if not risk_on else exposure * min(signal, equity)
     desired_bond = max(equity - desired_growth, 0.0)
 
     log.info("equity $%.2f | held %s $%.2f / %s $%.2f | target %s $%.2f / %s $%.2f",
@@ -170,9 +189,13 @@ def rebalance_once(client) -> None:
 def main() -> None:
     client = trading_client()
     acct = client.get_account()
-    log.info("9sig bot on PAPER account %s (equity $%s) mode=%s regime_overlay=%s",
+    log.info("9sig bot on PAPER account %s (equity $%s) mode=%s "
+             "sleeve=%s/%s split=%.0f%% target=%.0f%%/q regime=%s vol_target=%s",
              acct.account_number, acct.equity, config.NINE_SIG_MODE,
-             config.NINE_SIG_REGIME_ENABLED)
+             config.NINE_SIG_GROWTH, config.NINE_SIG_BOND,
+             config.NINE_SIG_INIT_GROWTH_PCT * 100,
+             config.NINE_SIG_QUARTERLY_TARGET * 100, config.NINE_SIG_REGIME_ENABLED,
+             config.NINE_SIG_VOL_TARGET_ENABLED)
     rebalance_once(client)
 
 
