@@ -13,7 +13,7 @@ for t,cik in tickers.items():
     r=j["filings"]["recent"]; codes={}; n=0; buys=0
     for i in range(len(r["form"])):
         if r["form"][i]!="4": continue
-        acc=r["accessionNumber"][i].replace("-",""); doc=r["primaryDocument"][i]
+        acc=r["accessionNumber"][i].replace("-",""); doc=r["primaryDocument"][i].split("/")[-1]
         url=f"https://www.sec.gov/Archives/edgar/data/{int(cik)}/{acc}/{doc}"
         try:
             root=ET.fromstring(requests.get(url,headers=UA,timeout=20).text)
