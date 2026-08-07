@@ -6,3 +6,5 @@ data_cache/
 *.log
 risk_state.json
 nine_sig_state.json
+nine_sig_state_*.json
+form4_buys.json
