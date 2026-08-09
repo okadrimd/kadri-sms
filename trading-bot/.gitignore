@@ -8,3 +8,7 @@ risk_state.json
 nine_sig_state.json
 nine_sig_state_*.json
 form4_buys.json
+
+# research scratch outputs
+trading-bot/form4_buys.json
+trading-bot/parse_form4.log
